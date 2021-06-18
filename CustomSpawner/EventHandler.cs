@@ -10,11 +10,13 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using MySqlConnector;
 
 namespace CustomSpawner
 {
 	public class EventHandler
 	{
+		public bool datecheck;
 		public CustomSpawner plugin;
 		public EventHandler(CustomSpawner plugin) => this.plugin = plugin;
 
@@ -57,21 +59,54 @@ namespace CustomSpawner
 
 		public void OnVerified(VerifiedEventArgs ev)
 		{
-			if (!Round.IsStarted && (GameCore.RoundStart.singleton.NetworkTimer > 1 || GameCore.RoundStart.singleton.NetworkTimer == -2))
+			Timing.CallDelayed(1.5f, () =>
 			{
-				Timing.CallDelayed(0.5f, () =>
+				try
 				{
-					ev.Player.IsOverwatchEnabled = false;
-					ev.Player.Role = RoleType.Tutorial;
-					Scp096.TurnedPlayers.Add(ev.Player);
-					Scp173.TurnedPlayers.Add(ev.Player);
-				});
+					lock (CustomSpawner.DbLock)
+					{
+						MySqlCommand comm = CustomSpawner.conn.CreateCommand();
+						comm.Parameters.AddWithValue("?userid", ev.Player.UserId);
+						comm.CommandText = "SELECT classchoosedate FROM BasicData WHERE userid = ?userid";
+						DateTime date = (DateTime)comm.ExecuteScalar();
 
-				Timing.CallDelayed(1f, () =>
+						System.TimeSpan diff = DateTime.Now.Subtract(date);
+
+						datecheck = diff.Hours >= 1;
+						//Log.Info(date + "dupa " + diff + "dupa" + datecheck + ev.Player.GroupName.ToLower() == "svip" + ev.Player.RankColor + ev.Player.RankName);
+						Log.Info(ev.Player.GroupName);
+						Log.Debug(ev.Player.Group.BadgeText);
+					}
+				}
+				catch (MySqlException ex)
 				{
-					ev.Player.Position = SpawnPoint;
-				});
-			}
+					//var x = HttpQry.Post("https://discord.com/api/webhooks/814430550949232650/LxNC6zTqCPTBxTEy2eCfFc-4aq35zw9Dn08k72ncevGMPDlr5G1k3_UHOyx-G_br_FFZ", String.Format("content=VIP PLUGIN\nBŁĄD\nMSG: {0}\nSTACK: {1}\nINMSG: {2}\nSRC: {3}\n<@&725136877799211059>--------------------", ex.Message, ex.StackTrace, ex.InnerException, ex.Source));
+				}
+			
+			
+
+				if (!Round.IsStarted && (GameCore.RoundStart.singleton.NetworkTimer > 1 || GameCore.RoundStart.singleton.NetworkTimer == -2) && (ev.Player.Group.BadgeText == "SVIP" || ev.Player.Group.BadgeText == "VIP") && datecheck)
+				{
+					Timing.CallDelayed(0.5f, () =>
+					{
+						ev.Player.IsOverwatchEnabled = false;
+						ev.Player.Role = RoleType.Tutorial;
+						Scp096.TurnedPlayers.Add(ev.Player);
+						Scp173.TurnedPlayers.Add(ev.Player);
+					});
+
+					Timing.CallDelayed(1f, () =>
+					{
+						ev.Player.Position = SpawnPoint;
+					});
+				
+					MySqlCommand comm = CustomSpawner.conn.CreateCommand();
+					comm.Parameters.AddWithValue("?userid", ev.Player.UserId);
+					comm.Parameters.AddWithValue("?datetime", DateTime.Now);
+					comm.CommandText = "UPDATE BasicData SET classchoosedate = ?datetime WHERE userid = ?userid";
+					comm.ExecuteNonQuery();
+				}
+			});
 		}
 
 		public void OnRoundStart()
@@ -336,10 +371,12 @@ namespace CustomSpawner
 				Scp096.TurnedPlayers.Clear();
 				Scp173.TurnedPlayers.Clear();
 			});
+			CustomSpawner.conn.Close();
 		}
 
 		public void OnWaitingForPlayers()
 		{
+			CustomSpawner.conn.Open();
 			Round.IsLocked = true;
 
 			SCPsToSpawn = 0;

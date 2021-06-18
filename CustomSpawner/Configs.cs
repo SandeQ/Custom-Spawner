@@ -43,5 +43,20 @@ namespace CustomSpawner
 		public string SCPTeamDummy { get; set; } = "SCP Team";
 		public string ScientistTeamDummy { get; set; } = "Scientist Team";
 		public string MTFTeamDummy { get; set; } = "MTF Team";
+
+		[Description("Database server to connect to")]
+		public string DbServer { get; set; } = "localhost";
+
+		[Description("Database name to connect to")]
+		public string DbName { get; set; } = "";
+
+		[Description("Database username")]
+		public string DbUserId { get; set; } = "";
+
+		[Description("Database password")]
+		public string DbPass { get; set; } = "";
+
+		[Description("Database server to connect to")]
+		public uint DbPort { get; set; } = 3306;
 	}	
 }
